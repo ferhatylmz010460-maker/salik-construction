@@ -1,7 +1,73 @@
 (function () {
   'use strict';
+
+  // Global Copy to Clipboard function
+  window.copyToClipboard = function (text, btn, e) {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!text || !btn) return;
+
+    function markSuccess() {
+      btn.classList.add('copied');
+      setTimeout(function () {
+        btn.classList.remove('copied');
+      }, 2000);
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(markSuccess).catch(function () {
+        fallbackCopy(text, markSuccess);
+      });
+    } else {
+      fallbackCopy(text, markSuccess);
+    }
+  };
+
+  function fallbackCopy(text, cb) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      if (cb) cb();
+    } catch (err) {
+      console.warn('Copy fallback failed', err);
+    }
+    document.body.removeChild(ta);
+  }
+
+  // Corporate Toast Notification System
+  window.showSalikToast = function (title, message) {
+    var toast = document.getElementById('salikToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'salikToast';
+      toast.className = 'salik-toast';
+      toast.innerHTML = '<svg class="salik-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' +
+        '<div><div class="salik-toast-title" id="salikToastTitle"></div><div class="salik-toast-msg" id="salikToastMsg"></div></div>';
+      document.body.appendChild(toast);
+    }
+    var titleEl = document.getElementById('salikToastTitle');
+    var msgEl = document.getElementById('salikToastMsg');
+    if (titleEl) titleEl.textContent = title || 'Notificare';
+    if (msgEl) msgEl.textContent = message || '';
+
+    toast.classList.add('visible');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(function () {
+      toast.classList.remove('visible');
+    }, 4500);
+  };
+
   document.addEventListener('DOMContentLoaded', function () {
-    // mobile menu
+    // 1. Mobile Menu
     var burger = document.getElementById('burger');
     var nav = document.getElementById('nav');
     if (burger && nav) {
@@ -18,7 +84,8 @@
         });
       });
     }
-    // lightbox galerie
+
+    // 2. Lightbox Galerie
     var gimgs = Array.prototype.slice.call(document.querySelectorAll('.gm-gallery img'));
     if (gimgs.length) {
       var lb = document.createElement('div');
@@ -52,7 +119,8 @@
         else if (e.key === 'ArrowRight') show(idx + 1);
       });
     }
-    // accordion
+
+    // 3. Accordion
     document.querySelectorAll('.acc .acc-h').forEach(function (h) {
       h.addEventListener('click', function () {
         var scope = h.closest('.acc');
@@ -70,5 +138,68 @@
         }
       });
     });
+
+    // 4. Scroll-To-Top Button
+    var scrollBtn = document.getElementById('scrollTopBtn');
+    if (scrollBtn) {
+      window.addEventListener('scroll', function () {
+        if (window.pageYOffset > 300) {
+          scrollBtn.classList.add('visible');
+        } else {
+          scrollBtn.classList.remove('visible');
+        }
+      }, { passive: true });
+
+      scrollBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      });
+    }
+
+    // 5. GDPR Cookie Banner
+    var cookieBanner = document.getElementById('salikCookieBanner');
+    var acceptBtn = document.getElementById('scbAccept');
+    var closeBtn = document.getElementById('scbDecline');
+
+    if (cookieBanner) {
+      var isConsented = localStorage.getItem('salik_cookie_consent');
+      if (!isConsented) {
+        setTimeout(function () {
+          cookieBanner.classList.add('visible');
+        }, 1200);
+      }
+
+      function dismissBanner() {
+        localStorage.setItem('salik_cookie_consent', 'accepted');
+        cookieBanner.classList.remove('visible');
+      }
+
+      if (acceptBtn) acceptBtn.addEventListener('click', dismissBanner);
+      if (closeBtn) closeBtn.addEventListener('click', dismissBanner);
+    }
+
+    // 6. Smart Deviz Carryover to Contact Form (from tarife.html)
+    var devizMsg = sessionStorage.getItem('salik_deviz_message');
+    var msgField = document.querySelector('textarea[name="your-message"]');
+    var formContainer = document.getElementById('wpcf7-f6-o1') || document.getElementById('contactForm');
+
+    if (devizMsg && msgField) {
+      msgField.value = devizMsg;
+      if (formContainer) {
+        var alertEl = document.createElement('div');
+        alertEl.className = 'deviz-carryover-alert';
+        alertEl.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' +
+          '<div><strong>Deviz importat cu succes!</strong> Detaliile calculate în pagina de tarife au fost adăugate automat în mesaj. Completați datele de contact și trimiteți solicitarea.</div>';
+        formContainer.parentNode.insertBefore(alertEl, formContainer);
+        setTimeout(function () {
+          alertEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+      }
+      sessionStorage.removeItem('salik_deviz_message');
+      sessionStorage.removeItem('salik_deviz_total');
+    }
   });
 })();

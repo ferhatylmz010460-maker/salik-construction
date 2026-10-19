@@ -1,5 +1,11 @@
+﻿# Internal / Sensitive files
+integrations/
 logo-secenekleri/
 Musteriye_Gonderilecek_Gorseller/
 Web_Sitesi_Tam_Sayfa_Onizleme.png
 *.zip
+*.csv
+*.ini
+*.log
 .DS_Store
+Thumbs.db
