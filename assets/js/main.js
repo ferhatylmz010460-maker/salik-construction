@@ -202,26 +202,102 @@
       sessionStorage.removeItem('salik_deviz_total');
     }
 
-    // 7. Form Anti-Abuse & Anti-Spam Protection (Faz 3)
+    // 7. Form Anti-Abuse, Anti-Spam Protection & IP Rate Limiting (Faz 3)
     var contactForm = document.getElementById('contactForm');
     var pageLoadTime = Date.now();
+    var clientIpAddress = '';
+
+    // Asynchronously detect client IP in the background
+    (function detectClientIp() {
+      try {
+        fetch('https://api64.ipify.org?format=json')
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (data && data.ip) {
+              clientIpAddress = data.ip;
+              var ipInput = document.getElementById('clientIpInput');
+              if (ipInput) ipInput.value = data.ip;
+            }
+          })
+          .catch(function () {
+            fetch('https://api.ipify.org?format=json')
+              .then(function (res) { return res.json(); })
+              .then(function (data) {
+                if (data && data.ip) {
+                  clientIpAddress = data.ip;
+                  var ipInput = document.getElementById('clientIpInput');
+                  if (ipInput) ipInput.value = data.ip;
+                }
+              })
+              .catch(function () {});
+          });
+      } catch (e) {}
+    })();
+
+    // Helper: Daily submissions tracker (max 2 submissions per IP/day)
+    function getTodayKey() {
+      var d = new Date();
+      return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    }
+
+    function getDailySubmissionsRecord() {
+      var todayKey = getTodayKey();
+      try {
+        var record = JSON.parse(localStorage.getItem('salik_daily_submissions') || '{}');
+        if (record && record.date === todayKey) {
+          return record;
+        }
+      } catch (e) {}
+      return { date: todayKey, count: 0, ip: '' };
+    }
+
+    function setDailySubmissionsRecord(count, ip) {
+      try {
+        localStorage.setItem('salik_daily_submissions', JSON.stringify({
+          date: getTodayKey(),
+          count: count,
+          ip: ip || clientIpAddress || ''
+        }));
+      } catch (e) {}
+    }
 
     if (contactForm) {
+      var submitBtn = contactForm.querySelector('input[type="submit"]') || contactForm.querySelector('button[type="submit"]');
+      var noticeBox = document.getElementById('formNotice');
+      if (!noticeBox) {
+        noticeBox = document.getElementById('formSuccess');
+      }
+
+      function showFormNotice(msg, type) {
+        if (!noticeBox) return;
+        noticeBox.style.display = 'block';
+        noticeBox.className = 'form-notice notice-' + (type || 'error');
+        noticeBox.innerHTML = msg;
+        noticeBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      // Check if user has already reached the daily limit (2 per day) upon page load
+      var initialDaily = getDailySubmissionsRecord();
+      if (initialDaily.count >= 2) {
+        showFormNotice('<strong>Limită zilnică atinsă (2/2):</strong> Ați trimis deja 2 solicitări astăzi de la această conexiune. Pentru urgențe, vă rugăm să ne contactați direct pe <a href="https://wa.me/40721768968" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;font-weight:700;">WhatsApp</a> sau telefonic la <a href="tel:0721768968" style="color:inherit;text-decoration:underline;font-weight:700;">0721 768 968</a>.', 'warning');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.value = 'Limită zilnică atinsă (2/2)';
+        }
+      }
+
       contactForm.addEventListener('submit', function (e) {
         e.preventDefault();
 
-        var submitBtn = contactForm.querySelector('input[type="submit"]') || contactForm.querySelector('button[type="submit"]');
-        var noticeBox = document.getElementById('formNotice');
-        if (!noticeBox) {
-          noticeBox = document.getElementById('formSuccess');
-        }
-
-        function showFormNotice(msg, type) {
-          if (!noticeBox) return;
-          noticeBox.style.display = 'block';
-          noticeBox.className = 'form-notice notice-' + (type || 'error');
-          noticeBox.textContent = msg;
-          noticeBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 0. Daily Submission Limit Check (Max 2 requests per IP / day)
+        var currentDaily = getDailySubmissionsRecord();
+        if (currentDaily.count >= 2) {
+          showFormNotice('Ați atins limita maximă de 2 solicitări pe zi de la această conexiune. Pentru solicitări urgente, vă rugăm să ne contactați direct telefonic sau pe WhatsApp la 0721 768 968.', 'warning');
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.value = 'Limită zilnică atinsă (2/2)';
+          }
+          return;
         }
 
         // 1. Honeypot Bot Trap Check
@@ -240,7 +316,7 @@
           return;
         }
 
-        // 3. 60-Second Client Cooldown Check (Anti Abuse)
+        // 3. 60-Second Client Cooldown Check (Anti Rapid-Fire Spam)
         var lastSubmit = parseInt(localStorage.getItem('salik_form_last_submit') || '0', 10);
         var timeSinceLast = (Date.now() - lastSubmit) / 1000;
         if (timeSinceLast < 60) {
@@ -304,11 +380,19 @@
         localStorage.setItem('salik_form_last_submit', String(Date.now()));
 
         setTimeout(function () {
-          // Success state
+          // Increment daily count
+          var newCount = currentDaily.count + 1;
+          setDailySubmissionsRecord(newCount, clientIpAddress);
+
+          // Success state display
           if (noticeBox) {
             noticeBox.style.display = 'block';
             noticeBox.className = 'form-notice notice-success';
-            noticeBox.innerHTML = '<strong>✓ Solicitarea dumneavoastră a fost înregistrată cu succes!</strong><br>Echipa SALIK CONSTRUCTION vă va contacta în cel mai scurt timp pentru detalii și oferta tehnică.';
+            if (newCount >= 2) {
+              noticeBox.innerHTML = '<strong>✓ Solicitarea dumneavoastră a fost înregistrată cu succes! (2/2 astăzi)</strong><br>Ați atins limita maximă de 2 solicitări pe zi de la această conexiune. Echipa SALIK CONSTRUCTION vă va contacta în cel mai scurt timp pentru detalii și oferta tehnică.';
+            } else {
+              noticeBox.innerHTML = '<strong>✓ Solicitarea dumneavoastră a fost înregistrată cu succes! (1/2 astăzi)</strong><br>Echipa SALIK CONSTRUCTION vă va contacta în cel mai scurt timp pentru detalii și oferta tehnică.';
+            }
             noticeBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
 
@@ -319,10 +403,15 @@
           contactForm.reset();
 
           if (submitBtn) {
-            setTimeout(function () {
-              submitBtn.disabled = false;
-              submitBtn.value = originalBtnVal;
-            }, 3000);
+            if (newCount >= 2) {
+              submitBtn.disabled = true;
+              submitBtn.value = 'Limită zilnică atinsă (2/2)';
+            } else {
+              setTimeout(function () {
+                submitBtn.disabled = false;
+                submitBtn.value = originalBtnVal;
+              }, 3000);
+            }
           }
         }, 650);
       });
