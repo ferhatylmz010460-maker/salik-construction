@@ -201,5 +201,131 @@
       sessionStorage.removeItem('salik_deviz_message');
       sessionStorage.removeItem('salik_deviz_total');
     }
+
+    // 7. Form Anti-Abuse & Anti-Spam Protection (Faz 3)
+    var contactForm = document.getElementById('contactForm');
+    var pageLoadTime = Date.now();
+
+    if (contactForm) {
+      contactForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        var submitBtn = contactForm.querySelector('input[type="submit"]') || contactForm.querySelector('button[type="submit"]');
+        var noticeBox = document.getElementById('formNotice');
+        if (!noticeBox) {
+          noticeBox = document.getElementById('formSuccess');
+        }
+
+        function showFormNotice(msg, type) {
+          if (!noticeBox) return;
+          noticeBox.style.display = 'block';
+          noticeBox.className = 'form-notice notice-' + (type || 'error');
+          noticeBox.textContent = msg;
+          noticeBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // 1. Honeypot Bot Trap Check
+        var hpHidden = contactForm.querySelector('input[name="client_security_verification"]');
+        if (hpHidden && hpHidden.value.trim().length > 0) {
+          // Fake success to misdirect the bot without saving anything
+          contactForm.reset();
+          showFormNotice('✓ Mesajul dumneavoastră a fost procesat.', 'success');
+          return;
+        }
+
+        // 2. Time-Gate Check (minimum 2.5 seconds human threshold)
+        var elapsedSec = (Date.now() - pageLoadTime) / 1000;
+        if (elapsedSec < 2.5) {
+          showFormNotice('Vă rugăm să verificați informațiile introduse înainte de a trimite formularul.', 'warning');
+          return;
+        }
+
+        // 3. 60-Second Client Cooldown Check (Anti Abuse)
+        var lastSubmit = parseInt(localStorage.getItem('salik_form_last_submit') || '0', 10);
+        var timeSinceLast = (Date.now() - lastSubmit) / 1000;
+        if (timeSinceLast < 60) {
+          var waitTime = Math.ceil(60 - timeSinceLast);
+          showFormNotice('Ați trimis deja o solicitare. Pentru a preveni trimiterile duplicate, vă rugăm să așteptați încă ' + waitTime + ' secunde.', 'warning');
+          return;
+        }
+
+        // 4. Input Validations
+        var nameInput = contactForm.querySelector('input[name="your-name"]');
+        var phoneInput = contactForm.querySelector('input[name="your-phone"]');
+        var emailInput = contactForm.querySelector('input[name="your-email"]');
+        var messageInput = contactForm.querySelector('textarea[name="your-message"]');
+        var accCheckbox = contactForm.querySelector('input[name="acc-1"]');
+
+        var nameVal = nameInput ? nameInput.value.trim() : '';
+        var phoneVal = phoneInput ? phoneInput.value.trim() : '';
+        var emailVal = emailInput ? emailInput.value.trim() : '';
+        var msgVal = messageInput ? messageInput.value.trim() : '';
+
+        if (!nameVal || nameVal.length < 2) {
+          showFormNotice('Vă rugăm să introduceți numele complet.', 'error');
+          if (nameInput) nameInput.focus();
+          return;
+        }
+
+        // Phone Validation (minimum 7 digits, maximum 18)
+        var phoneCleanDigits = phoneVal.replace(/\D/g, '');
+        if (!phoneCleanDigits || phoneCleanDigits.length < 7 || phoneCleanDigits.length > 18) {
+          showFormNotice('Vă rugăm să introduceți un număr de telefon valid (ex. 0721 768 968).', 'error');
+          if (phoneInput) phoneInput.focus();
+          return;
+        }
+
+        // Optional Email Validation
+        if (emailVal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+          showFormNotice('Vă rugăm să introduceți o adresă de email validă.', 'error');
+          if (emailInput) emailInput.focus();
+          return;
+        }
+
+        if (!msgVal || msgVal.length < 5) {
+          showFormNotice('Vă rugăm să descrieți detaliile proiectului dumneavoastră.', 'error');
+          if (messageInput) messageInput.focus();
+          return;
+        }
+
+        if (accCheckbox && !accCheckbox.checked) {
+          showFormNotice('Vă rugăm să bifați acordul privind prelucrarea datelor cu caracter personal.', 'warning');
+          return;
+        }
+
+        // 5. Locking Button / Loading State (Anti Double-Click)
+        var originalBtnVal = submitBtn ? submitBtn.value : 'Trimite mesajul';
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.value = 'Se trimite...';
+        }
+
+        // 6. Record cooldown timestamp
+        localStorage.setItem('salik_form_last_submit', String(Date.now()));
+
+        setTimeout(function () {
+          // Success state
+          if (noticeBox) {
+            noticeBox.style.display = 'block';
+            noticeBox.className = 'form-notice notice-success';
+            noticeBox.innerHTML = '<strong>✓ Solicitarea dumneavoastră a fost înregistrată cu succes!</strong><br>Echipa SALIK CONSTRUCTION vă va contacta în cel mai scurt timp pentru detalii și oferta tehnică.';
+            noticeBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+
+          if (window.showSalikToast) {
+            window.showSalikToast('Mesaj Trimis!', 'Solicitarea dumneavoastră a fost recepționată cu succes.');
+          }
+
+          contactForm.reset();
+
+          if (submitBtn) {
+            setTimeout(function () {
+              submitBtn.disabled = false;
+              submitBtn.value = originalBtnVal;
+            }, 3000);
+          }
+        }, 650);
+      });
+    }
   });
 })();

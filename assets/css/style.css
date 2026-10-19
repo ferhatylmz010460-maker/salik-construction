@@ -763,3 +763,39 @@ footer.site .fbot{border-top:1px solid rgba(255,255,255,.08);margin-top:20px;pad
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* 7. Form Abuse & Anti-Spam States (Faz 3) */
+.wpcf7 .wpcf7-submit:disabled {
+  opacity: 0.65 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  filter: grayscale(0.2);
+}
+.form-notice {
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-top: 18px;
+  display: none;
+  animation: fadeInDown 0.3s ease;
+  line-height: 1.5;
+}
+.form-notice.notice-error {
+  background: #FEF2F2;
+  border: 1px solid #F87171;
+  color: #991B1B;
+  display: block;
+}
+.form-notice.notice-success {
+  background: #ECFDF5;
+  border: 1px solid #10B981;
+  color: #065F46;
+  display: block;
+}
+.form-notice.notice-warning {
+  background: #FFFBEB;
+  border: 1px solid #FBBF24;
+  color: #92400E;
+  display: block;
+}
+
