@@ -276,36 +276,15 @@
         noticeBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
 
-      // Check if user has already reached the daily limit (2 per day) upon page load
-      var initialDaily = getDailySubmissionsRecord();
-      if (initialDaily.count >= 2) {
-        showFormNotice('<strong>Limită zilnică atinsă (2/2):</strong> Ați trimis deja 2 solicitări astăzi de la această conexiune. Pentru urgențe, vă rugăm să ne contactați direct pe <a href="https://wa.me/40721768968" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;font-weight:700;">WhatsApp</a> sau telefonic la <a href="tel:0721768968" style="color:inherit;text-decoration:underline;font-weight:700;">0721 768 968</a>.', 'warning');
-        if (submitBtn) {
-          submitBtn.disabled = true;
-          submitBtn.value = 'Limită zilnică atinsă (2/2)';
-        }
-      }
-
       contactForm.addEventListener('submit', function (e) {
         e.preventDefault();
 
-        // 0. Daily Submission Limit Check (Max 2 requests per IP / day)
-        var currentDaily = getDailySubmissionsRecord();
-        if (currentDaily.count >= 2) {
-          showFormNotice('Ați atins limita maximă de 2 solicitări pe zi de la această conexiune. Pentru solicitări urgente, vă rugăm să ne contactați direct telefonic sau pe WhatsApp la 0721 768 968.', 'warning');
-          if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.value = 'Limită zilnică atinsă (2/2)';
-          }
-          return;
-        }
-
-        // 1. Honeypot Bot Trap Check
+        // 1. Honeypot Bot Trap Check (Silent Drop)
         var hpHidden = contactForm.querySelector('input[name="client_security_verification"]');
         if (hpHidden && hpHidden.value.trim().length > 0) {
           // Fake success to misdirect the bot without saving anything
           contactForm.reset();
-          showFormNotice('✓ Mesajul dumneavoastră a fost procesat.', 'success');
+          showFormNotice('<strong>✓ Solicitarea dumneavoastră a fost înregistrată cu succes!</strong><br>Echipa SALIK CONSTRUCTION vă va contacta în cel mai scurt timp pentru detalii și oferta tehnică.', 'success');
           return;
         }
 
@@ -379,20 +358,26 @@
         // 6. Record cooldown timestamp
         localStorage.setItem('salik_form_last_submit', String(Date.now()));
 
-        setTimeout(function () {
-          // Increment daily count
-          var newCount = currentDaily.count + 1;
-          setDailySubmissionsRecord(newCount, clientIpAddress);
+        // 7. Silent Daily IP / Device Cap Check (Shadow Drop)
+        var currentDaily = getDailySubmissionsRecord();
+        var isExceedingDailyLimit = (currentDaily.count >= 2);
 
-          // Success state display
+        setTimeout(function () {
+          // If within allowed quota (< 2 today), increment counter
+          if (!isExceedingDailyLimit) {
+            setDailySubmissionsRecord(currentDaily.count + 1, clientIpAddress);
+            // (When backend is connected, actual fetch request runs here)
+          } else {
+            // SILENT SHADOW DROP:
+            // Do NOT notify the user and do NOT send request to backend/email!
+            // Show the exact same success UI so the user/spammer suspects nothing.
+          }
+
+          // Uniform clean corporate success state display
           if (noticeBox) {
             noticeBox.style.display = 'block';
             noticeBox.className = 'form-notice notice-success';
-            if (newCount >= 2) {
-              noticeBox.innerHTML = '<strong>✓ Solicitarea dumneavoastră a fost înregistrată cu succes! (2/2 astăzi)</strong><br>Ați atins limita maximă de 2 solicitări pe zi de la această conexiune. Echipa SALIK CONSTRUCTION vă va contacta în cel mai scurt timp pentru detalii și oferta tehnică.';
-            } else {
-              noticeBox.innerHTML = '<strong>✓ Solicitarea dumneavoastră a fost înregistrată cu succes! (1/2 astăzi)</strong><br>Echipa SALIK CONSTRUCTION vă va contacta în cel mai scurt timp pentru detalii și oferta tehnică.';
-            }
+            noticeBox.innerHTML = '<strong>✓ Solicitarea dumneavoastră a fost înregistrată cu succes!</strong><br>Echipa SALIK CONSTRUCTION vă va contacta în cel mai scurt timp pentru detalii și oferta tehnică.';
             noticeBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
 
@@ -403,15 +388,10 @@
           contactForm.reset();
 
           if (submitBtn) {
-            if (newCount >= 2) {
-              submitBtn.disabled = true;
-              submitBtn.value = 'Limită zilnică atinsă (2/2)';
-            } else {
-              setTimeout(function () {
-                submitBtn.disabled = false;
-                submitBtn.value = originalBtnVal;
-              }, 3000);
-            }
+            setTimeout(function () {
+              submitBtn.disabled = false;
+              submitBtn.value = originalBtnVal;
+            }, 3000);
           }
         }, 650);
       });
